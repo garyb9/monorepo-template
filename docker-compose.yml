@@ -1,29 +1,46 @@
 services:
-  app:
+  backend:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: ts-template-app
-    env_file: .env
+      dockerfile: apps/backend/Dockerfile
+    container_name: monorepo-backend
+    env_file: apps/backend/.env
     ports:
-      - '${APP_PORT:-3000}:3000'
+      - '4000:4000'
     restart: unless-stopped
     healthcheck:
-      test: ['CMD-SHELL', 'wget -qO- http://localhost:3000/health || exit 1']
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:4000/health || exit 1']
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
-    # Uncomment when db service is enabled:
     # depends_on:
     #   db:
     #     condition: service_healthy
 
-  # ── PostgreSQL ───────────────────────────────────────────────────────────────
-  # Uncomment to enable. Also uncomment postgres_data volume below.
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile.dev
+    container_name: monorepo-frontend
+    ports:
+      - '3000:3000'
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: 1
+      NEXT_DISABLE_DEV_INDICATORS: 1
+    depends_on:
+      - backend
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/apps/frontend/.next
+
+  # ── PostgreSQL (optional) ────────────────────────────────────────────────────
   # db:
   #   image: postgres:16-alpine
-  #   container_name: ts-template-db
+  #   container_name: monorepo-db
   #   environment:
   #     POSTGRES_DB: myapp
   #     POSTGRES_USER: postgres
@@ -39,35 +56,14 @@ services:
   #     retries: 5
   #   restart: unless-stopped
 
-  # ── Ollama (local LLM) ───────────────────────────────────────────────────────
-  # Uncomment to enable. Also uncomment ollama_data volume below.
-  # Requires ollama-entrypoint.sh in project root.
-  # ollama:
-  #   image: ollama/ollama:latest
-  #   container_name: ts-template-ollama
-  #   env_file: .env
-  #   volumes:
-  #     - ollama_data:/root/.ollama
-  #     - ./ollama-entrypoint.sh:/entrypoint.sh:ro
+  # ── Redis (optional) ─────────────────────────────────────────────────────────
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: monorepo-redis
   #   ports:
-  #     - '11434:11434'
-  #   entrypoint: ['/bin/bash', '/entrypoint.sh']
-  #   healthcheck:
-  #     test: ['CMD', 'bash', '-c', 'ollama list | grep -q "${OLLAMA_MODEL:-llama3.2:3b}"']
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 30
-  #     start_period: 30s
+  #     - '6379:6379'
+  #   volumes:
+  #     - redis_data:/data
   #   restart: unless-stopped
-  #   # Uncomment for NVIDIA GPU passthrough:
-  #   # deploy:
-  #   #   resources:
-  #   #     reservations:
-  #   #       devices:
-  #   #         - driver: nvidia
-  #   #           count: all
-  #   #           capabilities: [gpu]
 
-volumes:
-  # postgres_data:
-  # ollama_data:
+volumes: {}
